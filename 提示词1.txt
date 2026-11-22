@@ -1,0 +1,27 @@
+请完成 ucore RISC-V Lab4 的“虚拟内存页操作”模块。
+
+只修改命令：
+kern/mm/pmm.c
+
+只实现以下两个函数，不要修改其他函数：
+1. int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm);
+2. void page_remove(pde_t *pgdir, uintptr_t la);
+
+实现要求：
+
+page_insert：
+- 使用 get_pte(pgdir, la, 1) 获取目标 PTE；
+- get_pte 失败时返回 -E_NO_MEM，不能留下半完成的映射；
+- 如果地址原本没有映射，则增加物理页引用计数并写入 PTE；
+- 如果地址已经映射到同一个物理页，只更新权限，不重复增加引用计数；
+- 如果地址已经映射到其他物理页，先安全删除旧映射并减少旧页引用计数，再建立新映射；
+- PTE 应使用 pte_create(page2ppn(page), perm) 创建；
+- 更新 PTE 后调用 tlb_invalidate(pgdir, la)，保证 TLB 与页表同步。
+
+page_remove：
+- 使用 get_pte(pgdir, la, 0) 查找 PTE；
+- 地址不存在或 PTE 无效时直接返回，函数必须幂等；
+- 有效映射应清空 PTE、使 TLB 失效并减少物理页引用计数；
+- 引用计数降为 0 时调用 free_page 释放物理页。
+
+请结合 get_pte、pte2page、page_ref_inc、page_ref_dec、pde2page、free_page、pte_create 和 tlb_invalidate 的现有定义实现。不要新增全局变量，不要改变函数签名，不要修改头文件、Makefile 或其他函数。

@@ -1,0 +1,56 @@
+请完成 ucore RISC-V Lab4 的“进程创建及初始化”模块。
+
+只修改命令：
+kern/process/proc.c
+
+只实现以下六个函数，不要修改其他函数：
+1. static struct proc_struct *alloc_proc(void);
+2. void proc_init(void);
+3. int kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags);
+4. int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf);
+5. static void copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf);
+6. static int copy_mm(uint32_t clone_flags, struct proc_struct *proc);
+
+实现要求：
+
+alloc_proc：
+- 使用 kmalloc 分配 PCB；
+- 对 PCB 做安全、完整的初始化；
+- 状态设为 PROC_UNINIT，pid 设为 -1，runs、kstack、need_resched、parent、mm、tf、pgdir、flags 和 context 清零；
+- 初始化 list_link 和 hash_link。
+
+proc_init：
+- 初始化 proc_list 和所有哈希桶；
+- 将当前执行现场包装为 idleproc，pid=0，状态 PROC_RUNNABLE，kstack 指向 bootstack；
+- 设置 idleproc 的页目录、名称和首次调度标记；
+- 设置 current=idleproc；
+- 通过 kernel_thread 创建 initproc，设置名称为 "init"；
+- initproc 的父进程应为 idleproc；
+- 保证测试注入到 proc_init 末尾时，idleproc 和 initproc 均已正确建立。
+
+kernel_thread：
+- 构造一个清零的临时 trapframe；
+- 将线程函数放入 gpr.s0，将参数放入 gpr.s1；
+- 将 epc 设置为 kernel_thread_entry；
+- 调用 do_fork 并返回新线程 PID。
+
+do_fork：
+- 依次完成 alloc_proc、setup_kstack、copy_mm、copy_thread；
+- 设置父进程、页目录、PID，加入 proc_list 和 PID 哈希表；
+- 增加进程计数，并通过 wakeup_proc 将新线程设为可运行；
+- 任何步骤失败都要按顺序释放内核栈和 PCB，不能泄漏资源；
+- 在临界区内维护进程管理结构。
+
+copy_thread：
+- 在新线程内核栈顶部放置一份 trapframe；
+- tf 非空时复制调用者提供的现场，否则建立默认现场；
+- 设置线程首次运行时的 sp、status 和 epc；
+- context.ra 设置为 forkret，context.sp 指向新 trapframe；
+- 确保首次运行链路为 switch_to -> forkret -> forkrets -> __trapret -> kernel_thread_entry。
+
+copy_mm：
+- 本阶段作为地址空间处理占位接口；
+- CLONE_VM 时共享 current->mm，否则设置为 NULL；
+- 始终返回成功，不实现实际地址空间复制。
+
+不要修改 do_exit、init_main、set_proc_name、get_pid 等已有函数，不要修改 proc.h 或其他文件。

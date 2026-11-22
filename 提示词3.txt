@@ -1,0 +1,41 @@
+请完成 ucore RISC-V Lab4 的“进程调度”模块。
+
+只修改以下文件，并且只实现指定的四个函数：
+1. kern/process/proc.c：void cpu_idle(void);
+2. kern/process/proc.c：void proc_run(struct proc_struct *proc);
+3. kern/schedule/sched.c：void schedule(void);
+4. kern/process/switch.S：void switch_to(struct context *from, struct context *to);
+
+实现要求：
+
+cpu_idle：
+- 作为 idleproc 的无限执行循环；
+- 当 current->need_resched 为真时调用 schedule；
+- 没有调度需求时等待下一次事件。
+
+schedule：
+- 使用 local_intr_save/local_intr_restore 保证调度选择具有原子性；
+- 清除当前进程的 need_resched；
+- 从 proc_list 中按环形顺序寻找 PROC_RUNNABLE 进程；
+- 如果当前是 idleproc，从 proc_list 头部开始；否则从当前进程的 list_link 后开始；
+- 找不到可运行进程时回退到 idleproc；
+- 增加目标进程 runs；
+- 目标不是当前进程时调用 proc_run 完成切换。
+
+proc_run：
+- 目标等于 current 时直接返回；
+- 在关闭中断的临界区内保存 old current，更新 current；
+- 使用 Sv39 模式设置 satp：
+  (SATP_MODE_SV39 << 60) | (proc->pgdir >> RISCV_PGSHIFT)
+- 设置 satp 后刷新 TLB；
+- 调用 switch_to 保存旧上下文并恢复新上下文；
+- 不能使用 riscv.h 中面向 Sv32 的 lsatp。
+
+switch_to：
+- 按 struct context 的字段顺序保存和恢复：
+  ra、sp、s0-s11，共 14 个寄存器；
+- from 指向旧上下文，to 指向新上下文；
+- 保存完整寄存器后再恢复目标上下文；
+- 最后通过恢复后的 ra 返回。
+
+不要修改测试函数、wakeup_proc、proc_init、do_fork、trap.c 或 Makefile，不要新增调度策略，不要修改结构体布局。
